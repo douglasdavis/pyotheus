@@ -1,0 +1,12 @@
+[package]
+name = "pyotheus"
+version = "0.1.0-dev"
+edition = "2024"
+
+[lib]
+name = "pyotheus"
+crate-type = ["cdylib"]
+
+[dependencies]
+prometheus-client = "0.24.0"
+pyo3 = { version = "0.26.0", features = ["abi3-py311"] }
