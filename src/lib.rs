@@ -9,6 +9,9 @@ use prometheus_client::registry::Registry;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::filter::Targets;
+
 #[derive(Clone)]
 struct HistogramConstructor {
     buckets: &'static [f64],
@@ -23,6 +26,7 @@ impl MetricConstructor<Histogram> for HistogramConstructor {
 type HistogramFamily = Family<Vec<(String, String)>, Histogram, HistogramConstructor>;
 
 #[pyclass(name = "Registry")]
+#[derive(Debug)]
 struct PyRegistry {
     registry: Registry,
     histograms: HashMap<String, HistogramFamily>,
@@ -46,23 +50,48 @@ impl PyRegistry {
         self.__repr__()
     }
 
-    /// Add a histogram to the internal registry.
-    fn add_histogram(&mut self, name: &str, help: &str, buckets: Vec<f64>) -> PyResult<()> {
+    /// Add a histogram metric to the registry.
+    ///
+    /// This method triggers a small, necessary memory leak. The
+    /// Histogram metric from prometheus_client crate requires a
+    /// constructor with 'static bin edges ("buckets"). From Python we
+    /// can only accept a dynamically defined sequence of floats (a
+    /// Python `list[float]` that resolves to a Rust `Vec<f64>`). We
+    /// leak the `Vec<f64>` to create a static reference to a slice of
+    /// f64; this is used to instantiate all required variants of the
+    /// Histogram dynamically as different labels come through the
+    /// program.
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// import pyotheus
+    /// r = pyotheus.Registry()
+    /// r.histogram(
+    ///     "response_time_ns",
+    ///     "response time in nanoseconds",
+    ///     [0.5e6, 1.0e6, 2.0e6, 5.0e6, 10.0e6],
+    /// )
+    /// ```
+    ///
+    #[pyo3(signature = (*, name, help, buckets))]
+    fn histogram_add(&mut self, name: &str, help: &str, buckets: Vec<f64>) -> PyResult<()> {
         let buckets: &'static [f64] = Box::leak(buckets.into_boxed_slice());
         let cons = HistogramConstructor { buckets };
         let family = HistogramFamily::new_with_constructor(cons);
-        self.histograms.insert(name.to_string(), family.clone());
+        if self.histograms.contains_key(name) {
+            return Err(PyKeyError::new_err(format!("Histogram with name {name} already exists")));
+        }
+        else {
+            self.histograms.insert(name.to_string(), family.clone());
+        }
         self.registry.register(name, help, family);
+        tracing::debug!("Added histogram '{name}'");
         Ok(())
     }
 
-    /// Retrieve a list of all histogram names
-    fn histogram_names(&self) -> Vec<String> {
-        self.histograms.keys().cloned().collect()
-    }
-
     /// Observe a single event to be histogrammed.
-    fn observe_histogram(
+    fn histogram_observe(
         &mut self,
         name: &str,
         labels: Vec<(String, String)>,
@@ -74,6 +103,11 @@ impl PyRegistry {
             .get_or_create(&labels)
             .observe(val);
         Ok(())
+    }
+
+    /// Retrieve a list of all histogram names
+    fn histogram_list(&self) -> Vec<String> {
+        self.histograms.keys().cloned().collect()
     }
 
     /// Encode the regitry's metrics
@@ -88,10 +122,30 @@ impl PyRegistry {
             Ok(buffer)
         })
     }
+
 }
 
 #[pymodule]
 mod pyotheus {
+
+    use super::*;
+
     #[pymodule_export]
     use super::PyRegistry;
+
+    #[pyfunction]
+    fn init_tracing(level: &str) {
+        let level_filter = level.parse::<tracing::Level>().expect("Invalid level");
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_filter(Targets::new().with_target("pyotheus", level_filter))
+            )
+            .init();
+    }
+
+    #[pymodule_init]
+    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        Ok(())
+    }
 }

@@ -10,3 +10,5 @@ crate-type = ["cdylib"]
 [dependencies]
 prometheus-client = "0.24.0"
 pyo3 = { version = "0.26.0", features = ["abi3-py311"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "std", "valuable"] }
