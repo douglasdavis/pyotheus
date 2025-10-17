@@ -76,16 +76,16 @@ impl PyRegistry {
     ///
     #[pyo3(signature = (*, name, help, buckets))]
     fn histogram_add(&mut self, name: &str, help: &str, buckets: Vec<f64>) -> PyResult<()> {
-        let buckets: &'static [f64] = Box::leak(buckets.into_boxed_slice());
-        let cons = HistogramConstructor { buckets };
-        let family = HistogramFamily::new_with_constructor(cons);
+        // fail early, without incurring the Box::leak
         if self.histograms.contains_key(name) {
             return Err(PyKeyError::new_err(format!(
                 "Histogram with name {name} already exists"
             )));
-        } else {
-            self.histograms.insert(name.to_string(), family.clone());
         }
+        let buckets: &'static [f64] = Box::leak(buckets.into_boxed_slice());
+        let cons = HistogramConstructor { buckets };
+        let family = HistogramFamily::new_with_constructor(cons);
+        self.histograms.insert(name.to_string(), family.clone());
         self.registry.register(name, help, family);
         tracing::debug!("Added histogram '{name}'");
         Ok(())
