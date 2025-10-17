@@ -1,3 +1,3 @@
 # pyotheus
 
-Rust Prometheus client library for Python.
+Prometheus client library for Python, written in Rust.
