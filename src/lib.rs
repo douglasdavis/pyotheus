@@ -9,6 +9,7 @@ use prometheus_client::registry::Registry;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 
+use pyo3::types::PyList;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::prelude::*;
 
@@ -53,13 +54,13 @@ impl PyRegistry {
     /// Add a histogram metric to the registry.
     ///
     /// This method triggers a small, necessary memory leak. The
-    /// Histogram metric from prometheus_client crate requires a
+    /// Histogram metric from the prometheus_client crate requires a
     /// constructor with 'static bin edges ("buckets"). From Python we
     /// can only accept a dynamically defined sequence of floats (a
     /// Python `list[float]` that resolves to a Rust `Vec<f64>`). We
     /// leak the `Vec<f64>` to create a static reference to a slice of
     /// f64; this is used to instantiate all required variants of the
-    /// Histogram dynamically as different labels come through the
+    /// Histogram dynamically, as different labels come through the
     /// program.
     ///
     /// # Examples
@@ -95,14 +96,18 @@ impl PyRegistry {
     fn histogram_observe(
         &mut self,
         name: &str,
-        labels: Vec<(String, String)>,
+        labels: Bound<'_, PyList>,
         val: f64,
     ) -> PyResult<()> {
-        self.histograms
+        // First check that we have a histogram with the given name;
+        // we want to fail early without incurring the Python list ->
+        // Rust Vec conversion cost when unncessary.
+        let family = self.histograms
             .get(name)
-            .ok_or_else(|| PyKeyError::new_err(format!("Histogram '{}' not found", name)))?
-            .get_or_create(&labels)
-            .observe(val);
+            .ok_or_else(|| PyKeyError::new_err(format!("Histogram '{}' not found", name)))?;
+        // Now extract and observe
+        let labels: Vec<(String, String)> = labels.extract()?;
+        family.get_or_create(&labels).observe(val);
         Ok(())
     }
 
