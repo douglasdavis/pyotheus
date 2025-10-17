@@ -9,7 +9,6 @@ use prometheus_client::registry::Registry;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 
-use pyo3::types::PyList;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::prelude::*;
 
@@ -96,18 +95,14 @@ impl PyRegistry {
     fn histogram_observe(
         &mut self,
         name: &str,
-        labels: Bound<'_, PyList>,
+        labels: Vec<(String, String)>,
         val: f64,
     ) -> PyResult<()> {
-        // First check that we have a histogram with the given name;
-        // we want to fail early without incurring the Python list ->
-        // Rust Vec conversion cost when unncessary.
-        let family = self.histograms
+        self.histograms
             .get(name)
-            .ok_or_else(|| PyKeyError::new_err(format!("Histogram '{}' not found", name)))?;
-        // Now extract and observe
-        let labels: Vec<(String, String)> = labels.extract()?;
-        family.get_or_create(&labels).observe(val);
+            .ok_or_else(|| PyKeyError::new_err(format!("Histogram '{}' not found", name)))?
+            .get_or_create(&labels)
+            .observe(val);
         Ok(())
     }
 
