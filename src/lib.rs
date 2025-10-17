@@ -9,8 +9,8 @@ use prometheus_client::registry::Registry;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 
-use tracing_subscriber::prelude::*;
 use tracing_subscriber::filter::Targets;
+use tracing_subscriber::prelude::*;
 
 #[derive(Clone)]
 struct HistogramConstructor {
@@ -80,9 +80,10 @@ impl PyRegistry {
         let cons = HistogramConstructor { buckets };
         let family = HistogramFamily::new_with_constructor(cons);
         if self.histograms.contains_key(name) {
-            return Err(PyKeyError::new_err(format!("Histogram with name {name} already exists")));
-        }
-        else {
+            return Err(PyKeyError::new_err(format!(
+                "Histogram with name {name} already exists"
+            )));
+        } else {
             self.histograms.insert(name.to_string(), family.clone());
         }
         self.registry.register(name, help, family);
@@ -122,7 +123,6 @@ impl PyRegistry {
             Ok(buffer)
         })
     }
-
 }
 
 #[pymodule]
@@ -139,7 +139,7 @@ mod pyotheus {
         tracing_subscriber::registry()
             .with(
                 tracing_subscriber::fmt::layer()
-                    .with_filter(Targets::new().with_target("pyotheus", level_filter))
+                    .with_filter(Targets::new().with_target("pyotheus", level_filter)),
             )
             .init();
     }
@@ -147,5 +147,33 @@ mod pyotheus {
     #[pymodule_init]
     fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_histogram_list_len() {
+        let mut registry = PyRegistry::__init__();
+        let add1 = registry.histogram_add("hist0", "help str", vec![100.0, 200.0, 300.0]);
+        let add2 = registry.histogram_add("hist1", "help str", vec![100.0, 200.0, 400.0]);
+        assert!(add1.is_ok());
+        assert!(add2.is_ok());
+        let mut hist_list = registry.histogram_list();
+        hist_list.sort();
+        let mut hist_expected = vec!["hist0", "hist1"];
+        hist_expected.sort();
+        assert_eq!(hist_list, hist_expected);
+    }
+
+    #[test]
+    fn test_histogram_exists() {
+        let mut registry = PyRegistry::__init__();
+        let add1 = registry.histogram_add("hist0", "help str", vec![100.0, 200.0, 300.0]);
+        assert!(add1.is_ok());
+        let add2 = registry.histogram_add("hist0", "help str", vec![100.0, 200.0]);
+        assert!(add2.is_err());
     }
 }
