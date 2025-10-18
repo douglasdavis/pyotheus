@@ -152,7 +152,8 @@ mod pyotheus {
     }
 
     #[pymodule_init]
-    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+    fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        m.add("__version__", "0.1.0.dev0")?;
         Ok(())
     }
 }
