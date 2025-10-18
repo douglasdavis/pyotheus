@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
+use indexmap::IndexMap;
+
 use prometheus_client::encoding::text::encode;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::family::MetricConstructor;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
-use pyo3::exceptions::{PyKeyError, PyRuntimeError};
+use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
 
 use tracing_subscriber::filter::Targets;
@@ -95,9 +97,14 @@ impl PyRegistry {
     fn histogram_observe(
         &mut self,
         name: &str,
-        labels: Vec<(String, String)>,
+        labels: Bound<'_, PyAny>,
         val: f64,
     ) -> PyResult<()> {
+        let labels: Vec<(String, String)> = labels
+            .extract::<IndexMap<String, String>>()
+            .map(|m| m.into_iter().collect())
+            .or_else(|_| labels.extract::<Vec<(String, String)>>())
+            .map_err(|_| PyTypeError::new_err("labels must be list[tuple[str, str]] or dict[str, str]."))?;
         self.histograms
             .get(name)
             .ok_or_else(|| PyKeyError::new_err(format!("Histogram '{}' not found", name)))?
