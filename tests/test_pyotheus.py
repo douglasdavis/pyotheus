@@ -20,7 +20,7 @@ def reshape_samples(samples):
             le = labels["le"]
             key = f"{name}_le_{le}"
         else:
-            raise ValueError("whoops")
+            key = name
         result[key] = sample
     return result
 
@@ -69,9 +69,18 @@ def test_basic_global():
         name="my_counter",
         help="some counter metric",
     )
+    gauge = pyotheus.Gauge(
+        name="my_gauge",
+        help="some gauge metric",
+    )
     histogram.observe([("foo", "bar"), ("baz", "qux")], 400)
     counter.inc({"foo": "bar"})
-    counter.inc({"foo": "bar"})
+    i = counter.inc({"foo": "bar"})
+    assert i == 1
+    gauge.set({"baz": "qux"}, 171)
+    old = gauge.set({"baz": "qux"}, 172)
+    assert old == 171
+
     encoded = pyotheus.encode_global_registry()
     families = list(text_string_to_metric_families(encoded.decode()))
     families = reshape_families(families)
@@ -89,3 +98,6 @@ def test_basic_global():
 
     counter_total_samples = reshape_samples(families["my_counter_total"].samples)
     assert counter_total_samples["my_counter_total"].value == 2
+
+    gauge_samples = reshape_samples(families["my_gauge"].samples)
+    assert gauge_samples["my_gauge"].value == 172

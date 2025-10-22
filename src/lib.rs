@@ -6,6 +6,7 @@ use prometheus_client::encoding::text::encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::family::MetricConstructor;
+use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
@@ -30,6 +31,7 @@ impl MetricConstructor<Histogram> for HistogramConstructor {
 
 type HistogramFamily = Family<Vec<(String, String)>, Histogram, HistogramConstructor>;
 type CounterFamily = Family<Vec<(String, String)>, Counter>;
+type GaugeFamily = Family<Vec<(String, String)>, Gauge>;
 
 fn coerce_labels(labels: Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>> {
     labels
@@ -95,9 +97,9 @@ impl PyHistogram {
         Self(family)
     }
 
-    fn observe(&mut self, labels: Bound<'_, PyAny>, val: f64) -> PyResult<()> {
+    fn observe(&mut self, labels: Bound<'_, PyAny>, value: f64) -> PyResult<()> {
         let labels = coerce_labels(labels)?;
-        self.0.get_or_create(&labels).observe(val);
+        self.0.get_or_create(&labels).observe(value);
         Ok(())
     }
 }
@@ -123,6 +125,30 @@ impl PyCounter {
     fn inc(&mut self, labels: Bound<'_, PyAny>) -> PyResult<u64> {
         let labels = coerce_labels(labels)?;
         Ok(self.0.get_or_create(&labels).inc())
+    }
+}
+
+#[pyclass(name = "Gauge")]
+struct PyGauge(GaugeFamily);
+
+#[pymethods]
+impl PyGauge {
+    #[new]
+    #[pyo3(signature = (*, name, help, registry=None))]
+    fn __init__(name: &str, help: &str, registry: Option<Bound<'_, PyRegistry>>) -> Self {
+        let family = GaugeFamily::default();
+        if let Some(pyreg) = registry {
+            pyreg.borrow_mut().0.register(name, help, family.clone());
+        } else {
+            let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
+            reg.register(name, help, family.clone());
+        }
+        Self(family)
+    }
+
+    fn set(&mut self, labels: Bound<'_, PyAny>, value: i64) -> PyResult<i64> {
+        let labels = coerce_labels(labels)?;
+        Ok(self.0.get_or_create(&labels).set(value))
     }
 }
 
@@ -165,6 +191,9 @@ mod pyotheus {
 
     #[pymodule_export]
     use super::PyCounter;
+
+    #[pymodule_export]
+    use super::PyGauge;
 
     #[pyfunction]
     fn encode_global_registry(py: Python<'_>) -> PyResult<Vec<u8>> {
