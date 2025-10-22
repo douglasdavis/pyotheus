@@ -147,8 +147,9 @@ impl PyRegistry {
     /// Encode the regitry's metrics
     ///
     /// This method will release the GIL while encoding the registry
-    fn encode(&mut self, py: Python<'_>) -> PyResult<String> {
-        py.detach(|| encode_registry(&self.0))
+    fn encode(&mut self, py: Python<'_>) -> PyResult<Vec<u8>> {
+        let s = py.detach(|| encode_registry(&self.0))?;
+        Ok(s.into_bytes())
     }
 }
 
@@ -167,11 +168,12 @@ mod pyotheus {
     use super::PyCounter;
 
     #[pyfunction]
-    fn encode_global_registry(py: Python<'_>) -> PyResult<String> {
-        py.detach(|| {
+    fn encode_global_registry(py: Python<'_>) -> PyResult<Vec<u8>> {
+        let s = py.detach(|| {
             let registry = MODULE_REGISTRY.get().unwrap().lock().unwrap();
             encode_registry(&registry)
-        })
+        })?;
+        Ok(s.into_bytes())
     }
 
     #[pyfunction]

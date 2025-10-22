@@ -41,7 +41,7 @@ def test_basic():
     histogram.observe([("foo", "bar"), ("baz", "qux")], 1100)
     counter.inc({"foo": "bar"})
     encoded = registry.encode()
-    families = list(text_string_to_metric_families(encoded))
+    families = list(text_string_to_metric_families(encoded.decode()))
     families = reshape_families(families)
 
     hist_samples = reshape_samples(families["my_hist"].samples)
@@ -73,7 +73,7 @@ def test_basic_global():
     counter.inc({"foo": "bar"})
     counter.inc({"foo": "bar"})
     encoded = pyotheus.encode_global_registry()
-    families = list(text_string_to_metric_families(encoded))
+    families = list(text_string_to_metric_families(encoded.decode()))
     families = reshape_families(families)
 
     hist_samples = reshape_samples(families["my_hist"].samples)
