@@ -41,17 +41,15 @@ fn coerce_labels(labels: Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>> {
         })
 }
 
-#[pyclass(name = "Registry")]
-#[derive(Debug)]
-struct PyRegistry {
-    registry: Registry,
+fn encode_registry(registry: &Registry) -> PyResult<String> {
+    let mut buffer = String::new();
+    encode(&mut buffer, registry)
+        .map_err(|err| PyRuntimeError::new_err(format!("Failed to encode registry ({err})")))?;
+    Ok(buffer)
 }
 
 #[pyclass(name = "Histogram")]
 struct PyHistogram(HistogramFamily);
-
-#[pyclass(name = "Counter")]
-struct PyCounter(CounterFamily);
 
 #[pymethods]
 impl PyHistogram {
@@ -89,10 +87,7 @@ impl PyHistogram {
         let cons = HistogramConstructor { buckets };
         let family = HistogramFamily::new_with_constructor(cons);
         if let Some(pyreg) = registry {
-            pyreg
-                .borrow_mut()
-                .registry
-                .register(name, help, family.clone());
+            pyreg.borrow_mut().0.register(name, help, family.clone());
         } else {
             let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
             reg.register(name, help, family.clone());
@@ -107,6 +102,9 @@ impl PyHistogram {
     }
 }
 
+#[pyclass(name = "Counter")]
+struct PyCounter(CounterFamily);
+
 #[pymethods]
 impl PyCounter {
     #[new]
@@ -114,10 +112,7 @@ impl PyCounter {
     fn __init__(name: &str, help: &str, registry: Option<Bound<'_, PyRegistry>>) -> Self {
         let family = CounterFamily::default();
         if let Some(pyreg) = registry {
-            pyreg
-                .borrow_mut()
-                .registry
-                .register(name, help, family.clone());
+            pyreg.borrow_mut().0.register(name, help, family.clone());
         } else {
             let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
             reg.register(name, help, family.clone());
@@ -131,13 +126,14 @@ impl PyCounter {
     }
 }
 
+#[pyclass(name = "Registry")]
+struct PyRegistry(Registry);
+
 #[pymethods]
 impl PyRegistry {
     #[new]
     fn __init__() -> Self {
-        PyRegistry {
-            registry: <Registry>::default(),
-        }
+        Self(<Registry>::default())
     }
 
     fn __repr__(&self) -> &'static str {
@@ -152,13 +148,7 @@ impl PyRegistry {
     ///
     /// This method will release the GIL while encoding the registry
     fn encode(&mut self, py: Python<'_>) -> PyResult<String> {
-        py.detach(|| {
-            let mut buffer = String::new();
-            encode(&mut buffer, &self.registry).map_err(|err| {
-                PyRuntimeError::new_err(format!("Failed to encode registry ({err})"))
-            })?;
-            Ok(buffer)
-        })
+        py.detach(|| encode_registry(&self.0))
     }
 }
 
@@ -179,12 +169,8 @@ mod pyotheus {
     #[pyfunction]
     fn encode_global_registry(py: Python<'_>) -> PyResult<String> {
         py.detach(|| {
-            let reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
-            let mut buffer = String::new();
-            encode(&mut buffer, &reg).map_err(|err| {
-                PyRuntimeError::new_err(format!("Failed to encode registry ({err})"))
-            })?;
-            Ok(buffer)
+            let registry = MODULE_REGISTRY.get().unwrap().lock().unwrap();
+            encode_registry(&registry)
         })
     }
 
