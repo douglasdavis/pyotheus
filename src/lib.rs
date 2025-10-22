@@ -1,8 +1,10 @@
+use std::sync::{OnceLock, Mutex};
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
 
 use prometheus_client::encoding::text::encode;
+use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::family::MetricConstructor;
 use prometheus_client::metrics::histogram::Histogram;
@@ -13,6 +15,9 @@ use pyo3::prelude::*;
 
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::prelude::*;
+
+
+static MODULE_REGISTRY: OnceLock<Mutex<Registry>> = OnceLock::new();
 
 #[derive(Clone)]
 struct HistogramConstructor {
@@ -26,13 +31,59 @@ impl MetricConstructor<Histogram> for HistogramConstructor {
 }
 
 type HistogramFamily = Family<Vec<(String, String)>, Histogram, HistogramConstructor>;
+type CounterFamily = Family<Vec<(String, String)>, Counter>;
+
+fn coerce_labels(labels: Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>> {
+    labels
+        .extract::<IndexMap<String, String>>()
+        .map(|m| m.into_iter().collect())
+        .or_else(|_| labels.extract::<Vec<(String, String)>>())
+        .map_err(|_| {
+            PyTypeError::new_err("labels must be list[tuple[str, str]] or dict[str, str].")
+        })
+}
 
 #[pyclass(name = "Registry")]
 #[derive(Debug)]
 struct PyRegistry {
     registry: Registry,
     histograms: HashMap<String, HistogramFamily>,
+    counters: HashMap<String, CounterFamily>,
 }
+
+#[pyclass(name = "Histogram")]
+struct PyHistogram(HistogramFamily);
+
+#[pymethods]
+impl PyHistogram {
+    #[new]
+    fn __init__(name: &str, help: &str, buckets: Vec<f64>, registry: Option<Bound<'_, PyRegistry>>) -> Self {
+        let buckets: &'static [f64] = Box::leak(buckets.into_boxed_slice());
+        let cons = HistogramConstructor { buckets };
+        let family = HistogramFamily::new_with_constructor(cons);
+        if let Some(pyreg) = registry {
+            pyreg.borrow_mut().registry.register(name, help, family.clone());
+        } else {
+            let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
+            reg.register(name, help, family.clone());
+        }
+        Self(family)
+    }
+
+    fn observe(
+        &mut self,
+        labels: Bound<'_, PyAny>,
+        val: f64,
+    ) -> PyResult<()> {
+        let labels = coerce_labels(labels)?;
+        self.0.get_or_create(&labels).observe(val);
+        Ok(())
+    }
+}
+
+
+#[pyclass(name = "Counter")]
+struct PyCounter(CounterFamily);
 
 #[pymethods]
 impl PyRegistry {
@@ -41,6 +92,7 @@ impl PyRegistry {
         PyRegistry {
             registry: <Registry>::default(),
             histograms: HashMap::new(),
+            counters: HashMap::new(),
         }
     }
 
@@ -50,6 +102,31 @@ impl PyRegistry {
 
     fn __str__(&self) -> &'static str {
         self.__repr__()
+    }
+
+    /// Add a counter to the registry
+    #[pyo3(signature = (*, name, help))]
+    fn counter_add(&mut self, name: &str, help: &str) -> PyResult<()> {
+        let counter = CounterFamily::default();
+        self.counters.insert(name.to_string(), counter.clone());
+        self.registry.register(name, help, counter);
+        Ok(())
+    }
+
+    /// Observe a single event to be histogrammed.
+    fn counter_observe(&mut self, name: &str, labels: Bound<'_, PyAny>) -> PyResult<u64> {
+        let labels = coerce_labels(labels)?;
+        Ok(self
+            .counters
+            .get(name)
+            .ok_or_else(|| PyKeyError::new_err(format!("Counter '{}' not found", name)))?
+            .get_or_create(&labels)
+            .inc())
+    }
+
+    /// Retrieve a list of all counter names
+    fn counter_list(&self) -> Vec<String> {
+        self.counters.keys().cloned().collect()
     }
 
     /// Add a histogram metric to the registry.
@@ -100,11 +177,7 @@ impl PyRegistry {
         labels: Bound<'_, PyAny>,
         val: f64,
     ) -> PyResult<()> {
-        let labels: Vec<(String, String)> = labels
-            .extract::<IndexMap<String, String>>()
-            .map(|m| m.into_iter().collect())
-            .or_else(|_| labels.extract::<Vec<(String, String)>>())
-            .map_err(|_| PyTypeError::new_err("labels must be list[tuple[str, str]] or dict[str, str]."))?;
+        let labels = coerce_labels(labels)?;
         self.histograms
             .get(name)
             .ok_or_else(|| PyKeyError::new_err(format!("Histogram '{}' not found", name)))?
@@ -140,6 +213,12 @@ mod pyotheus {
     #[pymodule_export]
     use super::PyRegistry;
 
+    #[pymodule_export]
+    use super::PyHistogram;
+
+    #[pymodule_export]
+    use super::PyCounter;
+
     #[pyfunction]
     fn init_tracing(level: &str) {
         let level_filter = level.parse::<tracing::Level>().expect("Invalid level");
@@ -153,6 +232,9 @@ mod pyotheus {
 
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+
+        MODULE_REGISTRY.get_or_init(|| Mutex::new(Registry::default()));
+
         m.add("__version__", "0.1.0.dev0")?;
         Ok(())
     }
