@@ -2,11 +2,18 @@ import pyotheus
 from prometheus_client.parser import text_string_to_metric_families
 
 
+def reshape_families(families):
+    result = {}
+    for family in families:
+        result[family.name] = family
+    return result
+
+
 def reshape_samples(samples):
     result = {}
     for sample in samples:
         name = sample.name
-        if name.endswith("count") or name.endswith("sum"):
+        if name.endswith("count") or name.endswith("sum") or name.endswith("_total"):
             key = name
         elif name.endswith("bucket"):
             labels = sample.labels
@@ -18,20 +25,35 @@ def reshape_samples(samples):
     return result
 
 
-def test_basic_histogram_and_encoding_result():
+def test_basic():
     registry = pyotheus.Registry()
-    registry.histogram_add(
+    histogram = pyotheus.Histogram(
         name="my_hist",
         help="some histogram metric",
         buckets=[500, 1000, 2000, 3000, 5000],
+        registry=registry,
     )
-    registry.histogram_observe("my_hist", [("foo", "bar"), ("baz", "qux")], 1100)
+    counter = pyotheus.Counter(
+        name="my_counter",
+        help="some counter metric",
+        registry=registry,
+    )
+    histogram.observe([("foo", "bar"), ("baz", "qux")], 1100)
+    counter.inc({"foo": "bar"})
     encoded = registry.encode()
     families = list(text_string_to_metric_families(encoded))
-    assert len(families) == 1
-    samples = reshape_samples(families[0].samples)
-    assert "my_hist_count" in samples
-    assert "my_hist_sum" in samples
-    assert samples["my_hist_bucket_le_500.0"].labels == {"le": "500.0", "foo": "bar", "baz": "qux"}
-    assert samples["my_hist_bucket_le_1000.0"].value == 0
-    assert samples["my_hist_bucket_le_2000.0"].value == 1
+    families = reshape_families(families)
+
+    hist_samples = reshape_samples(families["my_hist"].samples)
+    assert "my_hist_count" in hist_samples
+    assert "my_hist_sum" in hist_samples
+    assert hist_samples["my_hist_bucket_le_500.0"].labels == {
+        "le": "500.0",
+        "foo": "bar",
+        "baz": "qux",
+    }
+    assert hist_samples["my_hist_bucket_le_1000.0"].value == 0
+    assert hist_samples["my_hist_bucket_le_2000.0"].value == 1
+
+    counter_total_samples = reshape_samples(families["my_counter_total"].samples)
+    assert counter_total_samples["my_counter_total"].value == 1
