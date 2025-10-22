@@ -148,8 +148,7 @@ impl PyRegistry {
     ///
     /// This method will release the GIL while encoding the registry
     fn encode(&mut self, py: Python<'_>) -> PyResult<Vec<u8>> {
-        let s = py.detach(|| encode_registry(&self.0))?;
-        Ok(s.into_bytes())
+        py.detach(|| encode_registry(&self.0).map(String::into_bytes))
     }
 }
 
@@ -169,11 +168,10 @@ mod pyotheus {
 
     #[pyfunction]
     fn encode_global_registry(py: Python<'_>) -> PyResult<Vec<u8>> {
-        let s = py.detach(|| {
+        py.detach(|| {
             let registry = MODULE_REGISTRY.get().unwrap().lock().unwrap();
-            encode_registry(&registry)
-        })?;
-        Ok(s.into_bytes())
+            encode_registry(&registry).map(String::into_bytes)
+        })
     }
 
     #[pyfunction]
