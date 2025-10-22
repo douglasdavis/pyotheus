@@ -177,6 +177,18 @@ mod pyotheus {
     use super::PyCounter;
 
     #[pyfunction]
+    fn encode_global_registry(py: Python<'_>) -> PyResult<String> {
+        py.detach(|| {
+            let reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
+            let mut buffer = String::new();
+            encode(&mut buffer, &reg).map_err(|err| {
+                PyRuntimeError::new_err(format!("Failed to encode registry ({err})"))
+            })?;
+            Ok(buffer)
+        })
+    }
+
+    #[pyfunction]
     fn init_tracing(level: &str) {
         let level_filter = level.parse::<tracing::Level>().expect("Invalid level");
         tracing_subscriber::registry()

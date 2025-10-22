@@ -57,3 +57,35 @@ def test_basic():
 
     counter_total_samples = reshape_samples(families["my_counter_total"].samples)
     assert counter_total_samples["my_counter_total"].value == 1
+
+
+def test_basic_global():
+    histogram = pyotheus.Histogram(
+        name="my_hist",
+        help="some histogram metric",
+        buckets=[50, 100, 200, 300, 500],
+    )
+    counter = pyotheus.Counter(
+        name="my_counter",
+        help="some counter metric",
+    )
+    histogram.observe([("foo", "bar"), ("baz", "qux")], 400)
+    counter.inc({"foo": "bar"})
+    counter.inc({"foo": "bar"})
+    encoded = pyotheus.encode_global_registry()
+    families = list(text_string_to_metric_families(encoded))
+    families = reshape_families(families)
+
+    hist_samples = reshape_samples(families["my_hist"].samples)
+    assert "my_hist_count" in hist_samples
+    assert "my_hist_sum" in hist_samples
+    assert hist_samples["my_hist_bucket_le_500.0"].labels == {
+        "le": "500.0",
+        "foo": "bar",
+        "baz": "qux",
+    }
+    assert hist_samples["my_hist_bucket_le_300.0"].value == 0
+    assert hist_samples["my_hist_bucket_le_500.0"].value == 1
+
+    counter_total_samples = reshape_samples(families["my_counter_total"].samples)
+    assert counter_total_samples["my_counter_total"].value == 2
