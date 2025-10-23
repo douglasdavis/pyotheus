@@ -6,20 +6,41 @@ class Registry:
 
 class Histogram:
     def __init__(
-        self, name: str, help: str, buckets: list[float], registry: Registry | None
+        self,
+        name: str,
+        documentation: str,
+        buckets: list[float],
+        registry: Registry | None = None,
     ) -> None: ...
     def observe(
-        self, labels: dict[str, str] | list[tuple[str, str]], value: float
+        self,
+        labels: dict[str, str] | list[tuple[str, str]],
+        value: float,
     ) -> None: ...
 
 class Counter:
-    def __init__(self, name: str, help: str, registry: Registry | None) -> None: ...
-    def inc(self, lables: dict[str, str] | list[tuple[str, str]]) -> int: ...
+    def __init__(
+        self,
+        name: str,
+        documentation: str,
+        registry: Registry | None = None,
+    ) -> None: ...
+    def inc(
+        self,
+        lables: dict[str, str] | list[tuple[str, str]],
+    ) -> int: ...
 
 class Gauge:
-    def __init__(self, name: str, help: str, registry: Registry | None) -> None: ...
+    def __init__(
+        self,
+        name: str,
+        documentation: str,
+        registry: Registry | None = None,
+    ) -> None: ...
     def set(
-        self, lables: dict[str, str] | list[tuple[str, str]], value: int
+        self,
+        lables: dict[str, str] | list[tuple[str, str]],
+        value: int,
     ) -> int: ...
 
 def init_tracing(level: str) -> None: ...

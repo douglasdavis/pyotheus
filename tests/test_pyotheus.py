@@ -29,13 +29,13 @@ def test_basic():
     registry = pyotheus.Registry()
     histogram = pyotheus.Histogram(
         name="my_hist",
-        help="some histogram metric",
+        documentation="some histogram metric",
         buckets=[500, 1000, 2000, 3000, 5000],
         registry=registry,
     )
     counter = pyotheus.Counter(
         name="my_counter",
-        help="some counter metric",
+        documentation="some counter metric",
         registry=registry,
     )
     histogram.observe([("foo", "bar"), ("baz", "qux")], 1100)
@@ -61,23 +61,15 @@ def test_basic():
 
 def test_basic_global():
     histogram = pyotheus.Histogram(
-        name="my_hist",
-        help="some histogram metric",
-        buckets=[50, 100, 200, 300, 500],
+        "my_hist", "some histogram metric", [50, 100, 200, 300, 500]
     )
-    counter = pyotheus.Counter(
-        name="my_counter",
-        help="some counter metric",
-    )
-    gauge = pyotheus.Gauge(
-        name="my_gauge",
-        help="some gauge metric",
-    )
+    counter = pyotheus.Counter("my_counter", "some counter metric")
+    gauge = pyotheus.Gauge("my_gauge", "some gauge metric")
     histogram.observe([("foo", "bar"), ("baz", "qux")], 400)
     counter.inc({"foo": "bar"})
     i = counter.inc({"foo": "bar"})
     assert i == 1
-    gauge.set({"baz": "qux"}, 171)
+    gauge.set([("baz", "qux")], 171)
     old = gauge.set({"baz": "qux"}, 172)
     assert old == 171
 

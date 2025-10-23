@@ -78,10 +78,10 @@ impl PyHistogram {
     /// )
     /// ```
     #[new]
-    #[pyo3(signature = (*, name, help, buckets, registry=None))]
+    #[pyo3(signature = (name, documentation, buckets, registry=None))]
     fn __init__(
         name: &str,
-        help: &str,
+        documentation: &str,
         buckets: Vec<f64>,
         registry: Option<Bound<'_, PyRegistry>>,
     ) -> Self {
@@ -89,10 +89,13 @@ impl PyHistogram {
         let cons = HistogramConstructor { buckets };
         let family = HistogramFamily::new_with_constructor(cons);
         if let Some(pyreg) = registry {
-            pyreg.borrow_mut().0.register(name, help, family.clone());
+            pyreg
+                .borrow_mut()
+                .0
+                .register(name, documentation, family.clone());
         } else {
             let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
-            reg.register(name, help, family.clone());
+            reg.register(name, documentation, family.clone());
         }
         Self(family)
     }
@@ -110,14 +113,17 @@ struct PyCounter(CounterFamily);
 #[pymethods]
 impl PyCounter {
     #[new]
-    #[pyo3(signature = (*, name, help, registry=None))]
-    fn __init__(name: &str, help: &str, registry: Option<Bound<'_, PyRegistry>>) -> Self {
+    #[pyo3(signature = (name, documentation, registry=None))]
+    fn __init__(name: &str, documentation: &str, registry: Option<Bound<'_, PyRegistry>>) -> Self {
         let family = CounterFamily::default();
         if let Some(pyreg) = registry {
-            pyreg.borrow_mut().0.register(name, help, family.clone());
+            pyreg
+                .borrow_mut()
+                .0
+                .register(name, documentation, family.clone());
         } else {
             let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
-            reg.register(name, help, family.clone());
+            reg.register(name, documentation, family.clone());
         }
         Self(family)
     }
@@ -134,14 +140,17 @@ struct PyGauge(GaugeFamily);
 #[pymethods]
 impl PyGauge {
     #[new]
-    #[pyo3(signature = (*, name, help, registry=None))]
-    fn __init__(name: &str, help: &str, registry: Option<Bound<'_, PyRegistry>>) -> Self {
+    #[pyo3(signature = (name, documentation, registry=None))]
+    fn __init__(name: &str, documentation: &str, registry: Option<Bound<'_, PyRegistry>>) -> Self {
         let family = GaugeFamily::default();
         if let Some(pyreg) = registry {
-            pyreg.borrow_mut().0.register(name, help, family.clone());
+            pyreg
+                .borrow_mut()
+                .0
+                .register(name, documentation, family.clone());
         } else {
             let mut reg = MODULE_REGISTRY.get().unwrap().lock().unwrap();
-            reg.register(name, help, family.clone());
+            reg.register(name, documentation, family.clone());
         }
         Self(family)
     }
