@@ -1,0 +1,15 @@
+[package]
+name = "pyotheus"
+version = "0.0.1"
+edition = "2024"
+
+[lib]
+name = "pyotheus"
+crate-type = ["cdylib"]
+
+[dependencies]
+indexmap = "2.12.0"
+prometheus-client = "0.24.0"
+pyo3 = { version = "0.27.0", features = ["abi3-py311", "indexmap"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "std", "valuable"] }

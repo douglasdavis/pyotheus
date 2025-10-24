@@ -1,0 +1,36 @@
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pyotheus"
+version = "0.1.0.dev3"
+requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Doug Davis", email = "ddavis@ddavis.io" }]
+maintainers = [{ name = "Doug Davis", email = "ddavis@ddavis.io" }]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: System :: Monitoring",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.6.0",
+    "maturin>=1.9.6",
+    "prometheus-client>=0.23.1",
+    "pytest>=8.4.2",
+    "ruff>=0.14.1",
+    "ty>=0.0.1a23",
+]
