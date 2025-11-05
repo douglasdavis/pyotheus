@@ -192,7 +192,7 @@ impl PyRegistry {
     }
 }
 
-#[pymodule]
+#[pymodule(gil_used = false)]
 mod pyotheus {
 
     #[pymodule_export]
