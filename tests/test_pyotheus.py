@@ -1,5 +1,6 @@
-import pyotheus
 from prometheus_client.parser import text_string_to_metric_families
+
+import pyotheus
 
 
 def reshape_families(families):
