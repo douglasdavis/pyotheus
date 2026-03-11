@@ -30,7 +30,7 @@ dev = [
   "ipython>=9.6.0",
   "maturin>=1.9.6",
   "prometheus-client>=0.23.1",
-  "pytest>=8.4.2",
-  "ruff>=0.14.1",
-  "ty>=0.0.1a23",
+  "pytest>=9",
+  "ruff>=0.15.2",
+  "ty>=0.0.19",
 ]
