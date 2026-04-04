@@ -27,8 +27,9 @@ class Counter:
     ) -> None: ...
     def inc(
         self,
-        lables: dict[str, str] | list[tuple[str, str]],
-    ) -> int: ...
+        labels: dict[str, str] | list[tuple[str, str]],
+        amount: float | None = None,
+    ) -> float: ...
 
 class Gauge:
     def __init__(
@@ -37,11 +38,21 @@ class Gauge:
         documentation: str,
         registry: Registry | None = None,
     ) -> None: ...
+    def inc(
+        self,
+        labels: dict[str, str] | list[tuple[str, str]],
+        amount: float | None = None,
+    ) -> float: ...
+    def dec(
+        self,
+        labels: dict[str, str] | list[tuple[str, str]],
+        amount: float | None = None,
+    ) -> float: ...
     def set(
         self,
-        lables: dict[str, str] | list[tuple[str, str]],
-        value: int,
-    ) -> int: ...
+        labels: dict[str, str] | list[tuple[str, str]],
+        value: float,
+    ) -> float: ...
 
 def init_tracing(level: str) -> None: ...
 def encode_global_registry() -> bytes: ...

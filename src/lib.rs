@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicU64;
 use std::sync::{Mutex, OnceLock};
 
 use indexmap::IndexMap;
@@ -26,8 +27,8 @@ impl MetricConstructor<Histogram> for HistogramConstructor {
 }
 
 type HistogramFamily = Family<Vec<(String, String)>, Histogram, HistogramConstructor>;
-type CounterFamily = Family<Vec<(String, String)>, Counter>;
-type GaugeFamily = Family<Vec<(String, String)>, Gauge>;
+type CounterFamily = Family<Vec<(String, String)>, Counter<f64, AtomicU64>>;
+type GaugeFamily = Family<Vec<(String, String)>, Gauge<f64, AtomicU64>>;
 
 fn normalize_labels(labels: Bound<'_, PyAny>) -> PyResult<Vec<(String, String)>> {
     labels
@@ -97,7 +98,7 @@ impl PyHistogram {
         Self(family)
     }
 
-    fn observe(&mut self, labels: Bound<'_, PyAny>, value: f64) -> PyResult<()> {
+    fn observe(&self, labels: Bound<'_, PyAny>, value: f64) -> PyResult<()> {
         let labels = normalize_labels(labels)?;
         self.0.get_or_create(&labels).observe(value);
         Ok(())
@@ -129,9 +130,10 @@ impl PyCounter {
         Self(family)
     }
 
-    fn inc(&mut self, labels: Bound<'_, PyAny>) -> PyResult<u64> {
+    #[pyo3(signature = (labels, amount=None))]
+    fn inc(&self, labels: Bound<'_, PyAny>, amount: Option<f64>) -> PyResult<f64> {
         let labels = normalize_labels(labels)?;
-        Ok(self.0.get_or_create(&labels).inc())
+        Ok(self.0.get_or_create(&labels).inc_by(amount.unwrap_or(1.0)))
     }
 }
 
@@ -160,7 +162,19 @@ impl PyGauge {
         Self(family)
     }
 
-    fn set(&mut self, labels: Bound<'_, PyAny>, value: i64) -> PyResult<i64> {
+    #[pyo3(signature = (labels, amount=None))]
+    fn inc(&self, labels: Bound<'_, PyAny>, amount: Option<f64>) -> PyResult<f64> {
+        let labels = normalize_labels(labels)?;
+        Ok(self.0.get_or_create(&labels).inc_by(amount.unwrap_or(1.0)))
+    }
+
+    #[pyo3(signature = (labels, amount=None))]
+    fn dec(&self, labels: Bound<'_, PyAny>, amount: Option<f64>) -> PyResult<f64> {
+        let labels = normalize_labels(labels)?;
+        Ok(self.0.get_or_create(&labels).dec_by(amount.unwrap_or(1.0)))
+    }
+
+    fn set(&self, labels: Bound<'_, PyAny>, value: f64) -> PyResult<f64> {
         let labels = normalize_labels(labels)?;
         Ok(self.0.get_or_create(&labels).set(value))
     }
@@ -187,7 +201,7 @@ impl PyRegistry {
     /// Encode the regitry's metrics
     ///
     /// This method will release the GIL while encoding the registry
-    fn encode(&mut self, py: Python<'_>) -> PyResult<Vec<u8>> {
+    fn encode(&self, py: Python<'_>) -> PyResult<Vec<u8>> {
         py.detach(|| encode_registry(&self.0).map(String::into_bytes))
     }
 }

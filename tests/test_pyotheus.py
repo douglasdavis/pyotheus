@@ -69,10 +69,10 @@ def test_basic_global():
     histogram.observe([("foo", "bar"), ("baz", "qux")], 400)
     counter.inc({"foo": "bar"})
     i = counter.inc({"foo": "bar"})
-    assert i == 1
-    gauge.set([("baz", "qux")], 171)
-    old = gauge.set({"baz": "qux"}, 172)
-    assert old == 171
+    assert i == 1.0
+    gauge.set([("baz", "qux")], 171.0)
+    old = gauge.set({"baz": "qux"}, 172.0)
+    assert old == 171.0
 
     encoded = pyotheus.encode_global_registry()
     families = list(text_string_to_metric_families(encoded.decode()))
@@ -93,4 +93,4 @@ def test_basic_global():
     assert counter_total_samples["my_counter_total"].value == 2
 
     gauge_samples = reshape_samples(families["my_gauge"].samples)
-    assert gauge_samples["my_gauge"].value == 172
+    assert gauge_samples["my_gauge"].value == 172.0
