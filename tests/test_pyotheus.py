@@ -14,7 +14,7 @@ def reshape_samples(samples):
     result = {}
     for sample in samples:
         name = sample.name
-        if name.endswith("count") or name.endswith("sum") or name.endswith("_total"):
+        if name.endswith(("count", "sum", "_total")):
             key = name
         elif name.endswith("bucket"):
             labels = sample.labels

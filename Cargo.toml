@@ -8,8 +8,8 @@ name = "pyotheus"
 crate-type = ["cdylib"]
 
 [dependencies]
-indexmap = "2.12"
-prometheus-client = "0.24"
-pyo3 = { version = "0.28", features = ["abi3-py311", "indexmap"] }
+indexmap = "2.14"
+prometheus-client = "0.26"
+pyo3 = { version = "0.30", features = ["abi3-py312", "indexmap"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "std", "valuable"] }
